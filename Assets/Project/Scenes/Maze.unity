@@ -346,8 +346,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a778000cdb320f64683403395a79498a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rows: 4
-  cols: 4
+  rows: 10
+  cols: 10
   wallSize: 1
   wallPrefab: {fileID: 4004263939816053348, guid: 75c6f1d212fc948428b1225b88e61d26, type: 3}
 --- !u!4 &897390262

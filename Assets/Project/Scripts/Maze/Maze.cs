@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 public enum Direction {
     NORTH,
@@ -12,7 +13,7 @@ public class Maze : MonoBehaviour
     [Header("Stats")]
     [SerializeField] private int rows;
     [SerializeField] private int cols;
-    [SerializeField] private int wallSize;
+    [SerializeField] private float wallSize;
 
     [Header("Objects")]
     [SerializeField] private GameObject wallPrefab;
@@ -28,6 +29,58 @@ public class Maze : MonoBehaviour
     {
         InitializeCells();
         InitializeMaze();
+        GenerateMaze();
+    }
+
+    private void GenerateMaze()
+    {
+        Cell startingCell = _cells[0];
+
+        GenerateMazeRecursive(startingCell);
+    }
+
+    private void GenerateMazeRecursive(Cell currentCell)
+    {
+        currentCell.Visited = true;
+
+        Cell unvisitedNeighbor = GetRandomUnvisitedNeighbor(currentCell);
+
+        while (unvisitedNeighbor != null)
+        {
+            DestroyWallBetween(currentCell, unvisitedNeighbor);
+
+            GenerateMazeRecursive(unvisitedNeighbor);
+
+            unvisitedNeighbor = GetRandomUnvisitedNeighbor(currentCell);
+        }
+    }
+
+    private void DestroyWallBetween(Cell a, Cell b)
+    {
+        if (a.Row == b.Row - 1)
+        {
+            Destroy(a.Walls[(int)Direction.NORTH]);
+            a.Walls[(int)Direction.NORTH] = null;
+            b.Walls[(int)Direction.SOUTH] = null;
+        }
+        else if (a.Col == b.Col - 1)
+        {
+            Destroy(a.Walls[(int)Direction.EAST]);
+            a.Walls[(int)Direction.EAST] = null;
+            b.Walls[(int)Direction.WEST] = null;
+        }
+        else if (a.Row == b.Row + 1)
+        {
+            Destroy(a.Walls[(int)Direction.SOUTH]);
+            a.Walls[(int)Direction.SOUTH] = null;
+            b.Walls[(int)Direction.NORTH] = null;
+        }
+        else if (a.Col == b.Col + 1)
+        {
+            Destroy(a.Walls[(int)Direction.WEST]);
+            a.Walls[(int)Direction.WEST] = null;
+            b.Walls[(int)Direction.EAST] = null;
+        }
     }
 
     private void InitializeMaze()
@@ -60,7 +113,7 @@ public class Maze : MonoBehaviour
 
     private GameObject InstantiateNewWall(Cell cell, Direction dir)
     {
-        Vector3 position = new Vector3(cell.Col, 0, cell.Row);
+        Vector3 position = new Vector3(cell.Col, 0, cell.Row) * wallSize;
         Quaternion rotation = Quaternion.identity;
 
         if (dir == Direction.NORTH)
@@ -102,6 +155,26 @@ public class Maze : MonoBehaviour
                 _cells[index] = new Cell(r, c, new GameObject[4]);
             }
         }
+    }
+
+    private Cell GetRandomUnvisitedNeighbor(Cell cell) { // Returns null if no unvisited neighbors are found
+        List<Cell> unvisitedNeighbors = new List<Cell>();
+
+        for (int dir = 0; dir < 4; dir++)
+        {
+            Cell neighbor = GetNeighbor(cell, (Direction)dir);
+
+            if (neighbor != null && !neighbor.Visited) 
+            {
+                unvisitedNeighbors.Add(neighbor);
+            }
+        }
+
+        if (unvisitedNeighbors.Count == 0) { return null; }
+
+        Cell randomUnvisitedNeighbor = unvisitedNeighbors[Random.Range(0, unvisitedNeighbors.Count)];
+
+        return randomUnvisitedNeighbor;
     }
 
     private Cell GetNeighbor(Cell cell, Direction dir)
