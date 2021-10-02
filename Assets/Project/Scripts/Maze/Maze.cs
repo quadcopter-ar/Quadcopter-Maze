@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
+using System.Collections;
+using System.Collections.Generic;
 
 public enum Direction {
     NORTH,
@@ -29,30 +30,63 @@ public class Maze : MonoBehaviour
     {
         InitializeCells();
         InitializeMaze();
-        GenerateMaze();
+        WilsonsAlgorithm();
     }
 
-    private void GenerateMaze()
+    private void WilsonsAlgorithm()
     {
-        Cell startingCell = _cells[0];
+        HashSet<Cell> notInMaze = new HashSet<Cell>(_cells);
+        IEnumerator notInMazeEnumerator = notInMaze.GetEnumerator();
+        notInMazeEnumerator.MoveNext();
 
-        GenerateMazeRecursive(startingCell);
-    }
+        Cell startingCell = (Cell)notInMazeEnumerator.Current;
+        notInMaze.Remove(startingCell);
 
-    private void GenerateMazeRecursive(Cell currentCell)
-    {
-        currentCell.Visited = true;
-
-        Cell unvisitedNeighbor = GetRandomUnvisitedNeighbor(currentCell);
-
-        while (unvisitedNeighbor != null)
+        while (notInMaze.Count > 0)
         {
-            DestroyWallBetween(currentCell, unvisitedNeighbor);
+            notInMazeEnumerator = notInMaze.GetEnumerator();
+            notInMazeEnumerator.MoveNext();
 
-            GenerateMazeRecursive(unvisitedNeighbor);
+            Cell currentCell = (Cell)notInMazeEnumerator.Current;
 
-            unvisitedNeighbor = GetRandomUnvisitedNeighbor(currentCell);
+            List<Cell> walk = LoopErasedRandomWalk(currentCell, notInMaze);            
+
+            foreach (Cell cell in walk)
+            {
+                notInMaze.Remove(cell);
+            }
+
+            for (int i = walk.Count - 1; i >= 1; i--)
+            {
+                DestroyWallBetween(walk[i], walk[i - 1]);
+            }
         }
+    }
+
+    private List<Cell> LoopErasedRandomWalk(Cell currentCell, HashSet<Cell> notInMaze)
+    {
+        List<Cell> visitedThisWalk = new List<Cell>();
+        visitedThisWalk.Add(currentCell);
+
+        while (notInMaze.Contains(currentCell))
+        {
+            Cell randomNeighbor = GetRandomNeighbor(currentCell);
+
+            int indexOfRandomNeighbor = visitedThisWalk.IndexOf(randomNeighbor);
+
+            if (indexOfRandomNeighbor == -1) 
+            {
+                visitedThisWalk.Add(randomNeighbor);
+            }
+            else
+            {
+                visitedThisWalk.RemoveRange(indexOfRandomNeighbor + 1, visitedThisWalk.Count - indexOfRandomNeighbor - 1); // Erase loop
+            }
+
+            currentCell = visitedThisWalk[visitedThisWalk.Count - 1];
+        }
+
+        return visitedThisWalk;
     }
 
     private void DestroyWallBetween(Cell a, Cell b)
@@ -82,6 +116,48 @@ public class Maze : MonoBehaviour
             b.Walls[(int)Direction.EAST] = null;
         }
     }
+
+    private Cell GetRandomNeighbor(Cell cell) 
+    { 
+        List<Cell> validNeighbors = GetValidNeighbors(cell);
+
+        return validNeighbors[Random.Range(0, validNeighbors.Count)];
+    }
+
+    private List<Cell> GetValidNeighbors(Cell cell)
+    {
+        List<Cell> validNeighbors = new List<Cell>();
+
+        Cell northNeighbor = GetNeighbor(cell, Direction.NORTH);
+        Cell eastNeighbor = GetNeighbor(cell, Direction.EAST);
+        Cell southNeighbor = GetNeighbor(cell, Direction.SOUTH);
+        Cell westNeighbor = GetNeighbor(cell, Direction.WEST);
+
+        if (northNeighbor != null) { validNeighbors.Add(northNeighbor); }
+        if (eastNeighbor != null) { validNeighbors.Add(eastNeighbor); }
+        if (southNeighbor != null) { validNeighbors.Add(southNeighbor); }
+        if (westNeighbor != null) { validNeighbors.Add(westNeighbor); }
+
+        return validNeighbors;
+    }
+
+    private Cell GetNeighbor(Cell cell, Direction dir)
+    {
+        int row = cell.Row;
+        int col = cell.Col;
+
+        if (dir == Direction.NORTH) { row++; }
+        else if (dir == Direction.EAST) { col++; }
+        else if (dir == Direction.SOUTH) { row--; }
+        else if (dir == Direction.WEST) { col--; }
+
+        int index = GetIndex(row, col);
+
+        if (index == -1) { return null; }
+
+        return _cells[index];
+    }
+
 
     private void InitializeMaze()
     {
@@ -155,43 +231,6 @@ public class Maze : MonoBehaviour
                 _cells[index] = new Cell(r, c, new GameObject[4]);
             }
         }
-    }
-
-    private Cell GetRandomUnvisitedNeighbor(Cell cell) { // Returns null if no unvisited neighbors are found
-        List<Cell> unvisitedNeighbors = new List<Cell>();
-
-        for (int dir = 0; dir < 4; dir++)
-        {
-            Cell neighbor = GetNeighbor(cell, (Direction)dir);
-
-            if (neighbor != null && !neighbor.Visited) 
-            {
-                unvisitedNeighbors.Add(neighbor);
-            }
-        }
-
-        if (unvisitedNeighbors.Count == 0) { return null; }
-
-        Cell randomUnvisitedNeighbor = unvisitedNeighbors[Random.Range(0, unvisitedNeighbors.Count)];
-
-        return randomUnvisitedNeighbor;
-    }
-
-    private Cell GetNeighbor(Cell cell, Direction dir)
-    {
-        int row = cell.Row;
-        int col = cell.Col;
-
-        if (dir == Direction.NORTH) { row++; }
-        else if (dir == Direction.EAST) { col++; }
-        else if (dir == Direction.SOUTH) { row--; }
-        else if (dir == Direction.WEST) { col--; }
-
-        int index = GetIndex(row, col);
-
-        if (index == -1) { return null; }
-
-        return _cells[index];
     }
 
     private int GetIndex(int row, int col)
