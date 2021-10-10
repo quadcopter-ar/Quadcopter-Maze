@@ -2,33 +2,36 @@
 using System.Collections;
 using System.Collections.Generic;
 
-public class HoleMaze : MonoBehaviour
+public class HoleMaze3D : MonoBehaviour
 {
     [Header("Stats")]
-    [SerializeField] [Range(5f, 51f)] private int rows;
-    [SerializeField] [Range(5f, 51f)] private int cols;
+    [SerializeField] [Range(5f, 21f)] private int rows;
+    [SerializeField] [Range(5f, 21f)] private int cols;
+    [SerializeField] [Range(5f, 21f)] private int stacks; // What's after rows and columns? Rows, cols, ... stacks?
     [Space]
-    [SerializeField] [Range(3f, 49f)] private int holeRows;
-    [SerializeField] [Range(3f, 49f)] private int holeCols;
+    [SerializeField] [Range(3f, 19f)] private int holeRows;
+    [SerializeField] [Range(3f, 19f)] private int holeCols;
+    [SerializeField] [Range(3f, 19f)] private int holeStacks;
     [Space]
-    [SerializeField] private float wallSize;
+    [SerializeField] private float wallLength;
+    [SerializeField] private float wallHeight;
 
     [Header("Objects")]
     [SerializeField] private GameObject wallPrefab;
 
     private Transform _transform;
-    private Cell[] _cells;  // Starts at bottom left then goes column major order
+    private Cell[] _cells;  // Starts at bottom left then goes column major order, then goes vertically
     private void Awake()
     {
         _transform = transform;
-        _cells = new Cell[rows * cols];
+        _cells = new Cell[rows * cols * stacks];
     }
     private void Start()
     {
         InitializeCells();
         InitializeMaze();
         GenerateMaze();
-        DestroyWallsForEntranceAndGoal();
+        //DestroyWallsForEntranceAndGoal();
     }
 
     private void OnValidate()
@@ -36,14 +39,17 @@ public class HoleMaze : MonoBehaviour
         // We want odd mazes so there's a clear center
         if (holeRows % 2 == 0) { holeRows++; }
         if (holeCols % 2 == 0) { holeCols++; }
+        if (holeStacks % 2 == 0) { holeStacks++; }
 
-        // holeRows and holeCols can't be >= rows and cols
+        // hole dimentions can't be >= maze dimentions
         if (holeRows >= rows) { holeRows = rows - 2; }
         if (holeCols >= cols) { holeCols = cols - 2; }
+        if (holeStacks >= stacks) { holeStacks = holeStacks - 2; }
 
         // We want odd mazes so there's a clear center
         if (rows % 2 == 0) { rows++; }
         if (cols % 2 == 0) { cols++; }
+        if (stacks % 2 == 0) { stacks++; }
     }
 
     private void GenerateMaze() // Wilson's Algorithm
@@ -105,35 +111,7 @@ public class HoleMaze : MonoBehaviour
 
     private void DestroyWallsForEntranceAndGoal()
     {
-        // North entrance
-        Cell northEntrance = _cells[GetIndex(rows - 1, cols / 2)];
-        Destroy(northEntrance.Walls[(int)Direction.NORTH]);
-        northEntrance.Walls[(int)Direction.NORTH] = null;
 
-        // South entrance
-        Cell southEntrance = _cells[GetIndex(0, cols / 2)];
-        Destroy(southEntrance.Walls[(int)Direction.SOUTH]);
-        southEntrance.Walls[(int)Direction.SOUTH] = null;
-
-        // North goal
-        Cell northGoal = _cells[GetIndex((rows + holeRows) / 2, cols / 2)];
-        Destroy(northGoal.Walls[(int)Direction.SOUTH]);
-        northGoal.Walls[(int)Direction.SOUTH] = null;
-
-        // East goal
-        Cell eastGoal = _cells[GetIndex(rows / 2, (cols + holeCols) / 2)];
-        Destroy(eastGoal.Walls[(int)Direction.WEST]);
-        eastGoal.Walls[(int)Direction.WEST] = null;
-
-        // South goal
-        Cell southGoal = _cells[GetIndex((rows - holeRows) / 2 - 1, cols / 2)];
-        Destroy(southGoal.Walls[(int)Direction.NORTH]);
-        southGoal.Walls[(int)Direction.NORTH] = null;
-
-        // West goal
-        Cell westGoal = _cells[GetIndex(rows / 2, (cols - holeCols) / 2 - 1)];
-        Destroy(westGoal.Walls[(int)Direction.EAST]);
-        westGoal.Walls[(int)Direction.EAST] = null;
     }
 
     private void DestroyWallBetween(Cell a, Cell b)
@@ -179,11 +157,15 @@ public class HoleMaze : MonoBehaviour
         Cell eastNeighbor = GetNeighbor(cell, Direction.EAST);
         Cell southNeighbor = GetNeighbor(cell, Direction.SOUTH);
         Cell westNeighbor = GetNeighbor(cell, Direction.WEST);
+        Cell upNeighbor = GetNeighbor(cell, Direction.UP);
+        Cell downNeighbor = GetNeighbor(cell, Direction.DOWN);
 
         if (northNeighbor != null) { validNeighbors.Add(northNeighbor); }
         if (eastNeighbor != null) { validNeighbors.Add(eastNeighbor); }
         if (southNeighbor != null) { validNeighbors.Add(southNeighbor); }
         if (westNeighbor != null) { validNeighbors.Add(westNeighbor); }
+        if (upNeighbor != null) { validNeighbors.Add(upNeighbor); }
+        if (downNeighbor != null) { validNeighbors.Add(downNeighbor); }
 
         return validNeighbors;
     }
@@ -192,19 +174,21 @@ public class HoleMaze : MonoBehaviour
     {
         int row = cell.Row;
         int col = cell.Col;
+        int stack = cell.Stack;
 
         if (dir == Direction.NORTH) { row++; }
         else if (dir == Direction.EAST) { col++; }
         else if (dir == Direction.SOUTH) { row--; }
         else if (dir == Direction.WEST) { col--; }
+        else if (dir == Direction.UP) { stack++; }
+        else if (dir == Direction.DOWN) { stack--; }
 
-        int index = GetIndex(row, col);
+        int index = GetIndex(row, col, stack);
 
         if (index == -1) { return null; }
 
         return _cells[index];
     }
-
 
     private void InitializeMaze()
     {
@@ -212,25 +196,32 @@ public class HoleMaze : MonoBehaviour
         {
             for (int r = 0; r < rows; r++)
             {
-                int index = GetIndex(r, c);
-                Cell cell = _cells[index];
-
-                if (cell == null) { continue; } // Cell is in the hole
-
-                for (int dir = 0; dir < 4; dir++) // Looping through directions
+                for (int s = 0; s < stacks; s++)
                 {
-                    Cell neighbor = GetNeighbor(cell, (Direction)dir);
-                    int oppositeDir = (dir + 2) % 4;
+                    int index = GetIndex(r, c, s);
+                    Cell cell = _cells[index];
 
-                    if (neighbor != null && neighbor.Walls[oppositeDir] != null) 
-                    { 
-                        cell.Walls[dir] = neighbor.Walls[oppositeDir];
+                    if (cell == null) { continue; } // Cell is in the hole
 
-                        continue;
+                    for (int dir = 0; dir < 6; dir++) // Looping through directions
+                    {
+                        Cell neighbor = GetNeighbor(cell, (Direction)dir);
+                        int oppositeDir;
+
+                        if (dir == (int)Direction.UP) { oppositeDir = (int)Direction.DOWN; } // Special cases for up and down
+                        if (dir == (int)Direction.DOWN) { oppositeDir = (int)Direction.UP; }
+                        else { oppositeDir = (dir + 2) % 4; } // Normal case
+
+                        if (neighbor != null && neighbor.Walls[oppositeDir] != null) 
+                        { 
+                            cell.Walls[dir] = neighbor.Walls[oppositeDir];
+
+                            continue;
+                        }
+
+                        GameObject newWall = InstantiateNewWall(cell, (Direction)dir);
+                        cell.Walls[dir] = newWall;
                     }
-
-                    GameObject newWall = InstantiateNewWall(cell, (Direction)dir);
-                    cell.Walls[dir] = newWall;
                 }
             }
         }
@@ -238,30 +229,46 @@ public class HoleMaze : MonoBehaviour
 
     private GameObject InstantiateNewWall(Cell cell, Direction dir)
     {
-        Vector3 position = new Vector3(cell.Col, 0, cell.Row) * wallSize;
+        Vector3 position = new Vector3(cell.Col, cell.Stack, cell.Row) * wallLength;
         Quaternion rotation = Quaternion.identity;
 
         if (dir == Direction.NORTH)
         {
-            position.x += 0.5f * wallSize;
-            position.z += wallSize;
+            position.x += 0.5f * wallLength;
+            position.z += wallLength;
         }
         else if (dir == Direction.EAST)
         {
-            position.x += wallSize;
-            position.z += 0.5f * wallSize;
+            position.x += wallLength;
+            position.z += 0.5f * wallLength;
 
             rotation = Quaternion.Euler(0, 90, 0);
         }
         else if (dir == Direction.SOUTH)
         {
-            position.x += 0.5f * wallSize;
+            position.x += 0.5f * wallLength;
         }
         else if (dir == Direction.WEST) 
         {
-            position.z += 0.5f * wallSize;
+            position.z += 0.5f * wallLength;
 
             rotation = Quaternion.Euler(0, 90, 0);
+        }
+        else if (dir == Direction.UP) 
+        {
+            position.x += 0.5f * wallLength;
+            position.y += 0.5f * wallHeight;
+            position.z += 0.5f * wallLength;
+
+            rotation = Quaternion.Euler(90, 0, 0);
+        }
+        else if (dir == Direction.DOWN) 
+        {
+            position.x += 0.5f * wallLength;
+            position.y -= 0.5f * wallHeight;
+            position.z += 0.5f * wallLength;
+
+            rotation = Quaternion.Euler(90, 0, 0);
         }
 
         GameObject wall = Instantiate(wallPrefab, position, rotation, _transform);
@@ -275,24 +282,35 @@ public class HoleMaze : MonoBehaviour
         {
             for (int r = 0; r < rows; r++)
             {
-                int index = GetIndex(r, c);
+                for (int s = 0; s < stacks; s++)
+                {
+                    int index = GetIndex(r, c, s);
 
-                if (r  >= (rows - holeRows) / 2 && r <= (rows + holeRows) / 2 - 1) {
-                    if (c  >= (cols - holeCols) / 2 && c <= (cols + holeCols) / 2 - 1) {
-                        // This cell is in the hole so leave it as null
-                        continue;
+                    if (r  >= (rows - holeRows) / 2 && r <= (rows + holeRows) / 2 - 1) {
+                        if (c  >= (cols - holeCols) / 2 && c <= (cols + holeCols) / 2 - 1) {
+                            if (s  >= (stacks - holeStacks) / 2 && s <= (stacks + holeStacks) / 2 - 1) {
+                                // This cell is in the hole so leave it as null
+                                continue;
+                            }
+                        }
                     }
-                }
 
-                _cells[index] = new Cell(r, c, new GameObject[4]);
+                    _cells[index] = new Cell(r, c, s, new GameObject[6]);
+                }
             }
         }
     }
 
+    private int GetIndex(int row, int col, int stack)
+    {
+        if (row < 0 || row > rows - 1 || col < 0 || col > cols - 1 || stack < 0 || stack > stacks - 1) { return -1; }
+
+        return row + col * rows + (cols * rows) * stack;
+    }
+
     private int GetIndex(int row, int col)
     {
-        if (row < 0 || row > rows - 1 || col < 0 || col > cols - 1) { return -1; }
 
-        return col * rows + row;
+        return 0;
     }
 }

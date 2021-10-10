@@ -19,8 +19,6 @@ public class BasicMovement : MonoBehaviour
     private UnityEngine.XR.InputDevice rightController;
 
     private Gamepad gamepad;
-
-
     void Start() {
         //Lets get all the devices we can find.
         if(!debugMode){
